@@ -1,115 +1,175 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Sniper Dashboard - Masterclass</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; border-radius: 12px; }
-        .btn-hover:hover { transform: scale(1.02); transition: all 0.2s; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNIPER QUANT AI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body { background:#0f172a; color:white; font-family:sans-serif; }
+.glass { background:rgba(30,41,59,0.8); border:1px solid #334155; border-radius:12px; }
+</style>
 </head>
-<body class="p-2 md:p-4 h-screen flex flex-col gap-4">
 
-    <header class="glass p-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-lg shadow-cyan-900/20">
-        <div>
-            <h1 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 uppercase tracking-widest">
-                Solana Sniper Masterclass
-            </h1>
-            <p class="text-xs text-slate-400 mt-1">Target: 50% - 100% | Anti-Rug Setup</p>
-        </div>
-        
-        <div class="flex w-full md:w-auto gap-2">
-            <input type="text" id="caInput" placeholder="Paste Contract Address (CA)..." 
-                   class="w-full md:w-96 p-3 rounded-lg bg-slate-900 border border-slate-600 text-cyan-300 focus:outline-none focus:border-cyan-400 font-mono text-sm shadow-inner">
-            <button onclick="scanCoin()" class="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 px-6 py-3 rounded-lg font-bold shadow-lg btn-hover text-sm whitespace-nowrap">
-                ⚡ SCAN CA
-            </button>
-        </div>
-    </header>
+<body class="p-3 flex flex-col gap-3">
 
-    <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
-        
-        <div class="md:col-span-2 glass flex flex-col p-2 h-[800px] md:h-full">
-            <div class="flex justify-between items-center px-2 pb-2">
-                <h2 class="text-sm font-bold text-slate-300">📈 LIVE CHART & NEW PAIRS</h2>
-                <span class="text-xs bg-slate-800 px-2 py-1 rounded text-cyan-400 border border-cyan-800">Filter Manual di Web: Liq $10k-$60k, MCap < $150k</span>
-            </div>
-            <iframe src="https://dexscreener.com/solana?embed=1&theme=dark" class="w-full h-full rounded-lg border border-slate-700"></iframe>
-        </div>
+<!-- INPUT -->
+<div class="glass p-3 flex gap-2">
+<input id="caInput" placeholder="Paste CA..." class="flex-1 p-2 bg-black border rounded text-cyan-400">
+<button onclick="scanCoin()" class="bg-cyan-600 px-4 rounded">SCAN</button>
+</div>
 
-        <div class="flex flex-col gap-4 h-[800px] md:h-full overflow-y-auto pr-1">
-            
-            <div class="glass flex flex-col p-2 h-1/2 min-h-[300px]">
-                <h2 class="text-sm font-bold text-red-400 px-2 pb-2">🛡️ RUGCHECK (WAJIB HIJAU)</h2>
-                <div id="rugcheckArea" class="flex-1 rounded-lg border border-slate-700 bg-slate-900 flex items-center justify-center text-slate-500 text-sm">
-                    Paste CA dan klik Scan untuk melihat status
-                </div>
-            </div>
+<!-- STATUS -->
+<div class="glass p-3">
+<div id="sniperStatus">Menunggu scan...</div>
+<div id="marketData" class="text-xs text-slate-400"></div>
+</div>
 
-            <div class="glass p-4 flex flex-col gap-3">
-                <h2 class="text-sm font-bold text-green-400 border-b border-slate-700 pb-2">🚀 FAST EXECUTION (TELEGRAM)</h2>
-                <a href="https://t.me/solana_trojanbot" target="_blank" class="w-full bg-slate-800 border border-slate-600 hover:bg-slate-700 text-white py-3 rounded-lg flex justify-between items-center px-4 btn-hover transition">
-                    <span class="font-bold">🎯 Beli via Trojan Bot</span>
-                    <span class="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">Fastest</span>
-                </a>
-                <a id="bubbleMapBtn" href="https://bubblemaps.io/sol" target="_blank" class="w-full bg-slate-800 border border-slate-600 hover:bg-slate-700 text-white py-3 rounded-lg flex justify-between items-center px-4 btn-hover transition">
-                    <span class="font-bold">🫧 Cek Bubblemaps</span>
-                    <span class="text-xs bg-yellow-900 text-yellow-300 px-2 py-1 rounded">Holders</span>
-                </a>
-            </div>
+<!-- ACTION -->
+<div class="glass p-2 flex gap-2">
+<button onclick="saveTrade(currentCA,lastScore,'win')" class="bg-green-600 px-2">WIN</button>
+<button onclick="saveTrade(currentCA,lastScore,'lose')" class="bg-red-600 px-2">LOSE</button>
+<a id="tradeBtn" target="_blank" class="bg-blue-600 px-2">OPEN TRADE</a>
+</div>
 
-            <div class="glass p-4 flex-1">
-                <h2 class="text-sm font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2">📋 SOP MASTERCLASS CHECKLIST</h2>
-                <ul class="text-xs text-slate-300 space-y-2">
-                    <li class="flex items-start gap-2">
-                        <span class="text-green-400">✔️</span> 
-                        <span><strong>Liquidity:</strong> Antara $10,000 - $60,000.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-green-400">✔️</span> 
-                        <span><strong>Market Cap:</strong> Di bawah $150,000.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-red-400">🚨</span> 
-                        <span><strong>RugCheck:</strong> LP Burned 100%, Mint Disabled.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-red-400">🚨</span> 
-                        <span><strong>Top Holders:</strong> Tidak ada wallet pribadi pegang > 10%.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-cyan-400">💡</span> 
-                        <span><strong>Take Profit:</strong> Koin +100%, JUAL 50% modal awal. Sisanya biarkan moonbag!</span>
-                    </li>
-                </ul>
-            </div>
+<!-- CHART -->
+<div class="grid md:grid-cols-2 gap-3">
+<div class="glass h-[350px]"><iframe id="dexFrame" class="w-full h-full"></iframe></div>
+<div class="glass h-[350px]"><iframe id="rugFrame" class="w-full h-full"></iframe></div>
+</div>
 
-        </div>
-    </div>
+<!-- LOG -->
+<div class="glass p-3">
+<h2>⚡ LOG</h2>
+<div id="newPairs" class="text-xs max-h-[200px] overflow-y-auto"></div>
+</div>
 
-    <script>
-        function scanCoin() {
-            const ca = document.getElementById('caInput').value.trim();
-            if (!ca) {
-                alert("Masukkan Contract Address (CA) terlebih dahulu!");
-                return;
-            }
+<script>
 
-            // Update Rugcheck Iframe
-            const rugcheckArea = document.getElementById('rugcheckArea');
-            rugcheckArea.innerHTML = `<iframe src="https://rugcheck.xyz/tokens/${ca}" class="w-full h-full rounded-lg"></iframe>`;
+// ================= GLOBAL
+let currentCA="";
+let lastScore=0;
 
-            // Update Bubblemaps button link dynamically
-            const bubbleBtn = document.getElementById('bubbleMapBtn');
-            bubbleBtn.href = `https://bubblemaps.io/sol/token/${ca}`;
-            
-            // Visual feedback
-            document.getElementById('caInput').style.borderColor = '#4ade80';
-            setTimeout(() => { document.getElementById('caInput').style.borderColor = '#475569'; }, 1000);
-        }
-    </script>
+// ================= SAVE TRADE
+function saveTrade(ca,score,result){
+let db=JSON.parse(localStorage.getItem("trades")||"[]");
+db.push({ca,score,result});
+localStorage.setItem("trades",JSON.stringify(db));
+alert("Saved");
+}
+
+// ================= AI SERVER
+async function getAI(data){
+try{
+const res=await fetch("https://ai-sniper.onrender.com/predict",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify(data)
+});
+let j=await res.json();
+return j.win_probability;
+}catch{return null;}
+}
+
+// ================= BASIC AI
+function analyze(p){
+let liq=p.liquidity.usd||0;
+let mcap=p.fdv||0;
+let vol=p.volume.h24||0;
+
+let scam=0;
+if(liq<5000) scam+=30;
+if(mcap>liq*10) scam+=20;
+
+return {scam,vol};
+}
+
+// ================= HEDGE SCORE
+function scoreEngine(d){
+let s=100;
+if(d.liq<10000) s-=20;
+if(d.mcap>200000) s-=15;
+s-=d.scam;
+return Math.max(0,s);
+}
+
+// ================= PATTERN
+function pattern(d){
+if(d.vol>d.liq) return "MOMENTUM";
+if(d.mcap>d.liq*10) return "OVERVALUED";
+return "NORMAL";
+}
+
+// ================= MAIN
+async function scanCoin(){
+
+const ca=document.getElementById("caInput").value.trim();
+if(!ca) return;
+
+currentCA=ca;
+
+document.getElementById("dexFrame").src=`https://dexscreener.com/solana/${ca}?embed=1&theme=dark`;
+document.getElementById("rugFrame").src=`https://rugcheck.xyz/tokens/${ca}`;
+document.getElementById("tradeBtn").href=`https://dexscreener.com/solana/${ca}`;
+
+try{
+const r=await fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`);
+const d=await r.json();
+
+if(!d.pairs?.length){
+document.getElementById("sniperStatus").innerHTML="❌ Not found";
+return;
+}
+
+let p=d.pairs[0];
+
+let liq=p.liquidity.usd||0;
+let mcap=p.fdv||0;
+let vol=p.volume.h24||0;
+
+let ai=analyze(p);
+
+let finalScore=scoreEngine({
+liq,mcap,scam:ai.scam
+});
+
+lastScore=finalScore;
+
+let pat=pattern({liq,mcap,vol});
+
+// ================= AI SERVER
+let prob=await getAI({
+score:finalScore,
+liq,
+mcap,
+vol
+});
+
+// ================= UI
+let status="❌ SKIP";
+if(finalScore>70) status="🔥 READY";
+
+document.getElementById("sniperStatus").innerHTML=status;
+
+document.getElementById("marketData").innerHTML=`
+Liq:$${liq} | Mcap:$${mcap}
+<br>Score:${finalScore}
+<br>Pattern:${pat}
+<br>AI:${prob? (prob*100).toFixed(1)+"%":"-"}
+`;
+
+}catch{
+document.getElementById("sniperStatus").innerHTML="ERROR";
+}
+}
+
+// ================= AUTO SCAN (ENTER)
+document.getElementById("caInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") scanCoin();
+});
+
+</script>
+
 </body>
 </html>
