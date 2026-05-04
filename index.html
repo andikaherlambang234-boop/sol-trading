@@ -6,7 +6,7 @@
   <title>AURUMULTIMATE v6.1 - Quantum (XAUUSD + BTCUSD)</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
   <style>
-    /* ==== CSS ASLI (DIPERBAIKI) ==== */
+    /* === CSS ASLI (DIPERBAIKI) === */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --gold:#f0b429; --g2:#ffd700; --gd:#7a5500; --gr:#00e5a0; --rd:#ff3d5a;
@@ -180,6 +180,8 @@
       <div><div class="lbl">⏱ TIMEFRAME</div><select id="iTF"><option value="M5">M5</option><option value="M15" selected>M15</option><option value="H1">H1</option><option value="H4">H4</option><option value="D1">D1</option></select></div>
       <div><div class="lbl">📰 NEWS TODAY</div><select id="iNews"><option value="none">No Major News</option><option value="nfp">🔴 NFP</option><option value="cpi">🔴 CPI</option><option value="fomc">🔴 FOMC</option><option value="gdp">🟡 GDP</option><option value="pmi">🟡 PMI</option></select></div>
       <div><div class="lbl">📈 KORELASI / SENTIMEN</div><select id="iDXY"><option value="up">DXY Rising (Bear Gold)</option><option value="neutral" selected>DXY Neutral</option><option value="down">DXY Falling (Bull Gold)</option></select></div>
+      <!-- TAMBAHAN DROPDOWN MANUAL ARAH MARKET -->
+      <div><div class="lbl">🧭 ARAH MARKET (MANUAL)</div><select id="iManualDir"><option value="auto" selected>Auto (Engine)</option><option value="buy">Buy Dominant</option><option value="sell">Sell Dominant</option></select></div>
     </div>
     <!-- QUANTUM PANEL -->
     <div id="quantum-panel" style="display:none;margin-top:12px;border:1px solid rgba(192,132,252,.35);border-radius:10px;padding:14px;">
@@ -398,7 +400,8 @@ function saveInputs() {
     risk: document.getElementById('iRisk').value,
     tf: document.getElementById('iTF').value,
     news: document.getElementById('iNews').value,
-    dxy: document.getElementById('iDXY').value
+    dxy: document.getElementById('iDXY').value,
+    manualDir: document.getElementById('iManualDir').value
   };
   localStorage.setItem('aurum_v6_inputs', JSON.stringify(data));
 }
@@ -418,6 +421,7 @@ function loadInputs() {
     updateMarketSpecificDropdowns();
     if (d.news) document.getElementById('iNews').value = d.news;
     if (d.dxy) document.getElementById('iDXY').value = d.dxy;
+    if (d.manualDir) document.getElementById('iManualDir').value = d.manualDir;
   } catch (e) {}
 }
 
@@ -1214,7 +1218,7 @@ function run(fromResize = false) {
   drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, EMA21A, VP, STDDEV, candles, SwSR);
   renderRisk(RISK_R, SIG, P, ATR, SPREAD, mp);
   renderEquity();
-  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3 WITH MARKET DIRECTION & DETAIL ENTRY
+  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3 WITH MANUAL OVERRIDE & DETAIL ENTRY
   renderUnifiedTable(H, L, P, R, FIB, PIV, ICHI, BB, STDDEV, WM, VP, SwSR);
   renderSD(SD, P);
   renderIchi(ICHI, P);
@@ -1718,7 +1722,7 @@ function drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, E
   SwSR.support.forEach(v => { const y = ty(v); if (y > 2 && y < Ht - 2) { ctx.strokeStyle = 'rgba(0,229,160,.45)'; ctx.lineWidth = 1; ctx.setLineDash([3,6]); ctx.beginPath(); ctx.moveTo(pd, y); ctx.lineTo(pd + W2 * 0.45, y); ctx.stroke(); ctx.setLineDash([]); } });
   const lvls = [
     { v: H, c: 'rgba(255,61,90,.85)', l: 'HIGH', lw: 1.5, d: [] }, { v: L, c: 'rgba(0,229,160,.85)', l: 'LOW', lw: 1.5, d: [] },
-    { v: H - R * .382, c: 'rgba(255,149,0,.7)', l: '38.2%', lw: 1, d: [4,4] }, { v: H - R * .6, c: 'rgba(0,200,255,.7)', l: '50%', lw: 1.2, d: [4,4] },
+    { v: H - R * .382, c: 'rgba(255,149,0,.7)', l: '38.2%', lw: 1, d: [4,4] }, { v: H - R * .5, c: 'rgba(0,200,255,.7)', l: '50%', lw: 1.2, d: [4,4] },
     { v: H - R * .618, c: 'rgba(240,180,41,.95)', l: '61.8% φ', lw: 2.5, d: [] }, { v: H - R * .764, c: 'rgba(0,229,160,.55)', l: '76.4%', lw: 1, d: [4,4] },
     { v: PIV.PP, c: 'rgba(192,132,252,.65)', l: 'PP', lw: 1, d: [3,5] },
     { v: ICHI.tenkan, c: 'rgba(244,114,182,.6)', l: 'TKN', lw: 1, d: [2,4] }, { v: ICHI.kijun, c: 'rgba(0,200,255,.6)', l: 'KJN', lw: 1, d: [2,4] },
@@ -1790,7 +1794,7 @@ window.addEventListener('resize', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter') run(false); });
 
-// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) WITH MARKET DIRECTION & DETAIL ENTRY ==========
+// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) WITH MANUAL OVERRIDE & DETAIL ENTRY ==========
 function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp) {
   // 1. Fungsi logistik untuk konversi skor mentah ke probabilitas dasar
   function logisticPct(rawScore) {
@@ -1871,16 +1875,12 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
   function calcLimitProb(order, dirProb) {
     if (!order) return 0;
     let base = order.str; // 70-96
-    // Rata-rata antara kekuatan order dan probabilitas arah
     let combined = (base + dirProb) / 2;
-    // Koreksi jarak: makin dekat harga ke level, makin tinggi prob (maks +10)
     const distance = Math.abs(P - +order.p);
-    const rangeFactor = Math.max(0, 1 - distance / (R * 0.5)); // jarak setengah range = 0
+    const rangeFactor = Math.max(0, 1 - distance / (R * 0.5));
     const proximityBonus = Math.round(rangeFactor * 10);
     combined += proximityBonus;
-    // Koreksi quantum noise
     if (quantum && quantum.isNoise) combined *= 0.85;
-    // Koreksi fundamental (gunakan pengali spread & berita juga)
     if (SPREAD > 40) combined *= 0.9;
     else if (SPREAD > 25) combined *= 0.95;
     if (NEWS === 'nfp' || NEWS === 'fomc' || NEWS === 'cpi') combined *= 0.7;
@@ -1910,9 +1910,22 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
     `).join('');
   }
 
-  // 7. ARAH MARKET DOMINAN
-  const totalBuyScore = rawB;
-  const totalSellScore = rawS;
+  // 7. ARAH MARKET DOMINAN – DENGAN OVERRIDE MANUAL
+  const manualDir = document.getElementById('iManualDir')?.value || 'auto';
+  let totalBuyScore = rawB;
+  let totalSellScore = rawS;
+  let isManual = false;
+
+  if (manualDir === 'buy') {
+    totalBuyScore = Math.max(totalBuyScore, totalSellScore + 50);
+    totalSellScore = 0;
+    isManual = true;
+  } else if (manualDir === 'sell') {
+    totalSellScore = Math.max(totalSellScore, totalBuyScore + 50);
+    totalBuyScore = 0;
+    isManual = true;
+  }
+
   const totalScore = totalBuyScore + totalSellScore || 1;
   const dominantDir = totalBuyScore > totalSellScore ? 'BULLISH' : totalSellScore > totalBuyScore ? 'BEARISH' : 'NEUTRAL';
   const dominantProb = Math.round(Math.max(totalBuyScore, totalSellScore) / totalScore * 100);
@@ -1921,9 +1934,11 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
   // 8. Render panel
   let html = `
   <div style="background:rgba(0,0,0,.4); border:1px solid var(--gold); border-radius:8px; padding:12px; margin-bottom:12px; text-align:center;">
-    <span style="font-size:12px; font-family:'Orbitron'; color:${dominantColor};">📊 ARAH MARKET DOMINAN: ${dominantDir} (${dominantProb}%)</span>
+    <span style="font-size:12px; font-family:'Orbitron'; color:${dominantColor};">
+      📊 ARAH MARKET DOMINAN: ${dominantDir} (${dominantProb}%) ${isManual ? '<span style="color:var(--or);">⭐ MANUAL</span>' : ''}
+    </span>
     <div style="font-size:9px; color:var(--dim); margin-top:4px;">
-      Total Skor Buy: ${totalBuyScore} | Total Skor Sell: ${totalSellScore}
+      Total Skor Buy: ${totalBuyScore} | Total Skor Sell: ${totalSellScore} ${isManual ? '| ⚠️ Override Manual' : ''}
     </div>
   </div>
   <div class="g4" style="gap:12px">
