@@ -1214,7 +1214,7 @@ function run(fromResize = false) {
   drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, EMA21A, VP, STDDEV, candles, SwSR);
   renderRisk(RISK_R, SIG, P, ATR, SPREAD, mp);
   renderEquity();
-  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3 WITH DETAILS
+  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3 WITH MARKET DIRECTION & DETAIL ENTRY
   renderUnifiedTable(H, L, P, R, FIB, PIV, ICHI, BB, STDDEV, WM, VP, SwSR);
   renderSD(SD, P);
   renderIchi(ICHI, P);
@@ -1718,7 +1718,7 @@ function drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, E
   SwSR.support.forEach(v => { const y = ty(v); if (y > 2 && y < Ht - 2) { ctx.strokeStyle = 'rgba(0,229,160,.45)'; ctx.lineWidth = 1; ctx.setLineDash([3,6]); ctx.beginPath(); ctx.moveTo(pd, y); ctx.lineTo(pd + W2 * 0.45, y); ctx.stroke(); ctx.setLineDash([]); } });
   const lvls = [
     { v: H, c: 'rgba(255,61,90,.85)', l: 'HIGH', lw: 1.5, d: [] }, { v: L, c: 'rgba(0,229,160,.85)', l: 'LOW', lw: 1.5, d: [] },
-    { v: H - R * .382, c: 'rgba(255,149,0,.7)', l: '38.2%', lw: 1, d: [4,4] }, { v: H - R * .5, c: 'rgba(0,200,255,.7)', l: '50%', lw: 1.2, d: [4,4] },
+    { v: H - R * .382, c: 'rgba(255,149,0,.7)', l: '38.2%', lw: 1, d: [4,4] }, { v: H - R * .6, c: 'rgba(0,200,255,.7)', l: '50%', lw: 1.2, d: [4,4] },
     { v: H - R * .618, c: 'rgba(240,180,41,.95)', l: '61.8% φ', lw: 2.5, d: [] }, { v: H - R * .764, c: 'rgba(0,229,160,.55)', l: '76.4%', lw: 1, d: [4,4] },
     { v: PIV.PP, c: 'rgba(192,132,252,.65)', l: 'PP', lw: 1, d: [3,5] },
     { v: ICHI.tenkan, c: 'rgba(244,114,182,.6)', l: 'TKN', lw: 1, d: [2,4] }, { v: ICHI.kijun, c: 'rgba(0,200,255,.6)', l: 'KJN', lw: 1, d: [2,4] },
@@ -1790,7 +1790,7 @@ window.addEventListener('resize', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter') run(false); });
 
-// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) WITH DETAILS ==========
+// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) WITH MARKET DIRECTION & DETAIL ENTRY ==========
 function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp) {
   // 1. Fungsi logistik untuk konversi skor mentah ke probabilitas dasar
   function logisticPct(rawScore) {
@@ -1910,8 +1910,24 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
     `).join('');
   }
 
-  // 7. Render panel
-  let html = '<div class="g4" style="gap:12px">';
+  // 7. ARAH MARKET DOMINAN
+  const totalBuyScore = rawB;
+  const totalSellScore = rawS;
+  const totalScore = totalBuyScore + totalSellScore || 1;
+  const dominantDir = totalBuyScore > totalSellScore ? 'BULLISH' : totalSellScore > totalBuyScore ? 'BEARISH' : 'NEUTRAL';
+  const dominantProb = Math.round(Math.max(totalBuyScore, totalSellScore) / totalScore * 100);
+  const dominantColor = dominantDir === 'BULLISH' ? 'var(--gr)' : dominantDir === 'BEARISH' ? 'var(--rd)' : 'var(--gold)';
+
+  // 8. Render panel
+  let html = `
+  <div style="background:rgba(0,0,0,.4); border:1px solid var(--gold); border-radius:8px; padding:12px; margin-bottom:12px; text-align:center;">
+    <span style="font-size:12px; font-family:'Orbitron'; color:${dominantColor};">📊 ARAH MARKET DOMINAN: ${dominantDir} (${dominantProb}%)</span>
+    <div style="font-size:9px; color:var(--dim); margin-top:4px;">
+      Total Skor Buy: ${totalBuyScore} | Total Skor Sell: ${totalSellScore}
+    </div>
+  </div>
+  <div class="g4" style="gap:12px">
+  `;
 
   // Market BUY
   html += `<div style="background:${buyProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;text-align:center;display:flex;flex-direction:column;">
