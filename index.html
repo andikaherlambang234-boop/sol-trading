@@ -6,7 +6,7 @@
   <title>AURUMULTIMATE v6.1 - Quantum (XAUUSD + BTCUSD)</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
   <style>
-    /* ===== CSS ASLI (DIPERBAIKI) ===== */
+    /* ==== CSS ASLI (DIPERBAIKI) ==== */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --gold:#f0b429; --g2:#ffd700; --gd:#7a5500; --gr:#00e5a0; --rd:#ff3d5a;
@@ -1214,7 +1214,7 @@ function run(fromResize = false) {
   drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, EMA21A, VP, STDDEV, candles, SwSR);
   renderRisk(RISK_R, SIG, P, ATR, SPREAD, mp);
   renderEquity();
-  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE
+  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3
   renderUnifiedTable(H, L, P, R, FIB, PIV, ICHI, BB, STDDEV, WM, VP, SwSR);
   renderSD(SD, P);
   renderIchi(ICHI, P);
@@ -1230,7 +1230,7 @@ function run(fromResize = false) {
 function renderSession(SESS, mp) {
   document.getElementById('sess-row').innerHTML = SESS.sessions.map(s => {
     const act = SESS.active.some(a => a.n == s.n);
-    return `<span class="sess-pill ${act ? "sess-on" : "sess-off"}">${s.n}${act ? "•" : ""}</span>`;
+    return `<span class="sess-pill ${act ? "sess-on" : "sess-off"}">${s.n}${act ? "·" : ""}</span>`;
   }).join('') + `<span style="font-size:8px;color:var(--dim);margin-left:6px">${SESS.utc}</span>`;
   const c = SESS.best ? "rgba(0,229,160,.25)" : "rgba(240,180,41,.15)";
   document.getElementById('sess-panel').innerHTML = `
@@ -1774,7 +1774,6 @@ function drawEWChart(EW, H, L, P, R) {
   });
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(W * .48, ty(P), 3, 0, Math.PI * 2); ctx.fill();
 }
-
 // RESIZE & INIT
 let _resizeTimer = null;
 window.addEventListener('resize', () => {
@@ -1790,78 +1789,161 @@ window.addEventListener('resize', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter') run(false); });
 
-// ========== ULTIMATE ENTRY SIGNAL FUNCTION (TAMBAHAN) ==========
+// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) ==========
 function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp) {
-  let buyProb = sig.buyProb;
-  let sellProb = sig.sellProb;
-  let multBuy = 1.0, multSell = 1.0;
-  if (quantum && quantum.isNoise) { multBuy *= 0.8; multSell *= 0.8; }
-  if (SESS.overlap) { multBuy *= 1.05; multSell *= 1.05; }
-  else if (SESS.best) { multBuy *= 1.02; multSell *= 1.02; }
-  if (NEWS === 'nfp' || NEWS === 'fomc' || NEWS === 'cpi') { multBuy *= 0.6; multSell *= 0.6; }
-  else if (NEWS === 'gdp' || NEWS === 'pmi') { multBuy *= 0.85; multSell *= 0.85; }
-  if (SPREAD > 40) { multBuy *= 0.9; multSell *= 0.9; }
-  else if (SPREAD > 25) { multBuy *= 0.95; multSell *= 0.95; }
-  buyProb = Math.min(100, Math.round(buyProb * multBuy));
-  sellProb = Math.min(100, Math.round(sellProb * multSell));
+  // 1. Fungsi logistik untuk konversi skor mentah ke probabilitas dasar
+  function logisticPct(rawScore) {
+    const k = 0.04;        // steepness
+    const x0 = 80;         // midpoint (skor netral)
+    return Math.round(100 / (1 + Math.exp(-k * (rawScore - x0))));
+  }
 
+  const rawB = sig.bS;
+  const rawS = sig.sS;
+  let baseBuyProb = logisticPct(rawB);
+  let baseSellProb = logisticPct(rawS);
+
+  // 2. Koreksi Heisenberg (skala Planck) – noise mengurangi probabilitas
+  let quantumFactor = 1.0;
+  if (quantum) {
+    if (quantum.isNoise) {
+      const ratio = quantum.U / PLANCK_THRESHOLD; // 0 < ratio < 1
+      quantumFactor = 0.6 + 0.4 * ratio;          // 0.6 – 1.0
+    } else {
+      quantumFactor = 1.0; // tidak noise, tidak pengurangan
+    }
+  }
+  baseBuyProb = Math.round(baseBuyProb * quantumFactor);
+  baseSellProb = Math.round(baseSellProb * quantumFactor);
+
+  // 3. Boost / penalti dari level Bohr (skala atom)
+  let bohrBoostB = 0, bohrBoostS = 0;
+  if (quantum && quantum.nearBohrLevel) {
+    const bLevel = quantum.nearBohrLevel;
+    const isSupport = bLevel.type === 'Support'; // n>1 adalah Support
+    if (isSupport) {
+      bohrBoostB = 8;   // dekat support, buy lebih mungkin
+      bohrBoostS = -5;  // jual kurang menarik
+    } else {
+      // Resistance
+      bohrBoostB = -5;
+      bohrBoostS = 8;
+    }
+  }
+  baseBuyProb = Math.min(100, Math.max(0, baseBuyProb + bohrBoostB));
+  baseSellProb = Math.min(100, Math.max(0, baseSellProb + bohrBoostS));
+
+  // 4. Pengali dari kondisi fundamental & teknikal
+  let multBuy = 1.0, multSell = 1.0;
+
+  // Sesi trading
+  if (SESS.overlap) { multBuy *= 1.06; multSell *= 1.06; }
+  else if (SESS.best) { multBuy *= 1.03; multSell *= 1.03; }
+  else { multBuy *= 0.94; multSell *= 0.94; }
+
+  // Berita
+  if (NEWS === 'nfp' || NEWS === 'fomc' || NEWS === 'cpi') { multBuy *= 0.55; multSell *= 0.55; }
+  else if (NEWS === 'gdp' || NEWS === 'pmi') { multBuy *= 0.80; multSell *= 0.80; }
+
+  // Spread
+  if (SPREAD > 40) { multBuy *= 0.88; multSell *= 0.88; }
+  else if (SPREAD > 25) { multBuy *= 0.94; multSell *= 0.94; }
+
+  // Posisi harga dalam range
+  const pos = (P - L) / R;
+  if (pos < 0.25) { multBuy *= 1.06; multSell *= 0.94; }
+  else if (pos > 0.75) { multBuy *= 0.94; multSell *= 1.06; }
+
+  // DXY / Sentimen
+  const DXY = document.getElementById('iDXY').value;
+  if (DXY === 'down') { multBuy *= 1.04; multSell *= 0.96; }
+  else if (DXY === 'up') { multBuy *= 0.96; multSell *= 1.04; }
+
+  // 5. Probabilitas final Market Buy & Sell
+  let buyProb = Math.min(100, Math.round(baseBuyProb * multBuy));
+  let sellProb = Math.min(100, Math.round(baseSellProb * multSell));
+
+  // 6. Probabilitas limit order dengan koreksi jarak
   const bestBuy = orders.buy[0] || null;
   const bestSell = orders.sell[0] || null;
 
-  function calcLimitProb(order, dir) {
+  function calcLimitProb(order, dirProb) {
     if (!order) return 0;
-    let base = order.str;
-    if (dir === 'buy') return Math.min(100, Math.round((base + sig.buyProb) / 2));
-    else return Math.min(100, Math.round((base + sig.sellProb) / 2));
-  }
-  let buyLimitProb = calcLimitProb(bestBuy, 'buy');
-  let sellLimitProb = calcLimitProb(bestSell, 'sell');
-  if (quantum && quantum.isNoise) {
-    buyLimitProb = Math.round(buyLimitProb * 0.8);
-    sellLimitProb = Math.round(sellLimitProb * 0.8);
+    let base = order.str; // 70-96
+    // Rata-rata antara kekuatan order dan probabilitas arah
+    let combined = (base + dirProb) / 2;
+    // Koreksi jarak: makin dekat harga ke level, makin tinggi prob (maks +10)
+    const distance = Math.abs(P - +order.p);
+    const rangeFactor = Math.max(0, 1 - distance / (R * 0.5)); // jarak setengah range = 0
+    const proximityBonus = Math.round(rangeFactor * 10);
+    combined += proximityBonus;
+    // Koreksi quantum noise
+    if (quantum && quantum.isNoise) combined *= 0.85;
+    // Koreksi fundamental (gunakan pengali spread & berita juga)
+    if (SPREAD > 40) combined *= 0.9;
+    else if (SPREAD > 25) combined *= 0.95;
+    if (NEWS === 'nfp' || NEWS === 'fomc' || NEWS === 'cpi') combined *= 0.7;
+    else if (NEWS === 'gdp' || NEWS === 'pmi') combined *= 0.85;
+    return Math.min(99, Math.round(combined));
   }
 
-  let html = '<div class="g4" style="gap:10px">';
+  let buyLimitProb = calcLimitProb(bestBuy, buyProb);
+  let sellLimitProb = calcLimitProb(bestSell, sellProb);
+
+  // 7. Render panel
+  let html = '<div class="g4" style="gap:12px">';
+
   // Market BUY
-  html += `<div style="background:${buyProb>=75?'rgba(0,229,160,0.1)':'rgba(0,229,160,0.03)'};border:2px solid ${buyProb>=75?'rgba(0,229,160,0.6)':'rgba(0,229,160,0.2)'};border-radius:10px;padding:14px;">
-    <div style="font-family:'Orbitron';font-size:14px;color:var(--gr);margin-bottom:8px;">📈 MARKET BUY</div>
-    <div style="font-size:28px;font-weight:900;color:${buyProb>=75?'var(--gr)':buyProb>=50?'var(--gold)':'var(--rd)'}">${buyProb}%</div>
-    <div style="font-size:9px;color:var(--dim);margin:6px 0">Signal Confidence</div>
-    <div style="font-size:10px;font-weight:700;color:${buyProb>=75?'var(--gr)':buyProb>=50?'var(--gold)':'var(--rd)'}">${buyProb>=75?'STRONG BUY ✅':buyProb>=50?'MODERATE BUY':'WEAK BUY'}</div></div>`;
+  html += `<div style="background:${buyProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;text-align:center">
+    <div style="font-family:'Orbitron';font-size:14px;color:var(--gr);margin-bottom:6px;">📈 MARKET BUY</div>
+    <div style="font-size:34px;font-weight:900;color:${buyProb>=80?'var(--gr)':buyProb>=55?'var(--gold)':'var(--rd)'}">${buyProb}%</div>
+    <div style="font-size:9px;color:var(--dim);margin:8px 0 4px">Confidence (Logistic + Quantum)</div>
+    <div style="font-size:11px;font-weight:700;color:${buyProb>=80?'var(--gr)':buyProb>=55?'var(--gold)':'var(--rd)'}">${buyProb>=80?'🔥 STRONG BUY':buyProb>=55?'👍 MODERATE BUY':'👎 WEAK BUY'}</div>
+    <div style="margin-top:8px;font-size:8px;color:var(--dim)">Raw: ${rawB} | Base: ${baseBuyProb}% × ${multBuy.toFixed(2)}</div>
+  </div>`;
+
   // Market SELL
-  html += `<div style="background:${sellProb>=75?'rgba(255,61,90,0.1)':'rgba(255,61,90,0.03)'};border:2px solid ${sellProb>=75?'rgba(255,61,90,0.6)':'rgba(255,61,90,0.2)'};border-radius:10px;padding:14px;">
-    <div style="font-family:'Orbitron';font-size:14px;color:var(--rd);margin-bottom:8px;">📉 MARKET SELL</div>
-    <div style="font-size:28px;font-weight:900;color:${sellProb>=75?'var(--rd)':sellProb>=50?'var(--gold)':'var(--rd)'}">${sellProb}%</div>
-    <div style="font-size:9px;color:var(--dim);margin:6px 0">Signal Confidence</div>
-    <div style="font-size:10px;font-weight:700;color:${sellProb>=75?'var(--rd)':sellProb>=50?'var(--gold)':'var(--rd)'}">${sellProb>=75?'STRONG SELL ✅':sellProb>=50?'MODERATE SELL':'WEAK SELL'}</div></div>`;
+  html += `<div style="background:${sellProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;text-align:center">
+    <div style="font-family:'Orbitron';font-size:14px;color:var(--rd);margin-bottom:6px;">📉 MARKET SELL</div>
+    <div style="font-size:34px;font-weight:900;color:${sellProb>=80?'var(--rd)':sellProb>=55?'var(--gold)':'var(--rd)'}">${sellProb}%</div>
+    <div style="font-size:9px;color:var(--dim);margin:8px 0 4px">Confidence (Logistic + Quantum)</div>
+    <div style="font-size:11px;font-weight:700;color:${sellProb>=80?'var(--rd)':sellProb>=55?'var(--gold)':'var(--rd)'}">${sellProb>=80?'🔥 STRONG SELL':sellProb>=55?'👍 MODERATE SELL':'👎 WEAK SELL'}</div>
+    <div style="margin-top:8px;font-size:8px;color:var(--dim)">Raw: ${rawS} | Base: ${baseSellProb}% × ${multSell.toFixed(2)}</div>
+  </div>`;
+
   // BUY LIMIT
   if (bestBuy) {
-    html += `<div style="background:${buyLimitProb>=75?'rgba(0,229,160,0.1)':'rgba(0,229,160,0.03)'};border:2px solid ${buyLimitProb>=75?'rgba(0,229,160,0.6)':'rgba(0,229,160,0.2)'};border-radius:10px;padding:14px;">
+    html += `<div style="background:${buyLimitProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyLimitProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;">
       <div style="font-family:'Orbitron';font-size:14px;color:var(--gr);margin-bottom:8px;">📥 BUY LIMIT</div>
-      <div style="font-size:20px;font-weight:900;color:var(--gr)">${bestBuy.p}</div>
+      <div style="font-size:24px;font-weight:900;color:var(--gr)">${bestBuy.p}</div>
       <div style="font-size:10px;color:var(--dim);margin:4px 0">${bestBuy.n}</div>
-      <div style="font-size:28px;font-weight:900;color:${buyLimitProb>=75?'var(--gr)':'var(--gold)'}">${buyLimitProb}%</div>
-      <div style="font-size:9px;color:var(--dim);margin:6px 0">Entry Probability</div>
-      <div style="font-size:10px;font-weight:700;color:${buyLimitProb>=75?'var(--gr)':'var(--gold)'}">${buyLimitProb>=75?'STRONG LIMIT BUY ✅':'MODERATE LIMIT BUY'}</div></div>`;
+      <div style="font-size:30px;font-weight:900;color:${buyLimitProb>=80?'var(--gr)':'var(--gold)'}">${buyLimitProb}%</div>
+      <div style="font-size:9px;color:var(--dim);margin:6px 0 4px">Entry Probability (Distance adj.)</div>
+      <div style="font-size:11px;font-weight:700;color:${buyLimitProb>=80?'var(--gr)':'var(--gold)'}">${buyLimitProb>=80?'✅ HIGH PROB':'🔸 MODERATE'}</div>
+    </div>`;
   } else {
-    html += '<div style="padding:14px;border:1px solid var(--dim);border-radius:10px;color:var(--dim)">No Buy Limit below price</div>';
+    html += '<div style="padding:16px;border:1px solid var(--dim);border-radius:12px;color:var(--dim);text-align:center">No Buy Limit<br>below price</div>';
   }
+
   // SELL LIMIT
   if (bestSell) {
-    html += `<div style="background:${sellLimitProb>=75?'rgba(255,61,90,0.1)':'rgba(255,61,90,0.03)'};border:2px solid ${sellLimitProb>=75?'rgba(255,61,90,0.6)':'rgba(255,61,90,0.2)'};border-radius:10px;padding:14px;">
+    html += `<div style="background:${sellLimitProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellLimitProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;">
       <div style="font-family:'Orbitron';font-size:14px;color:var(--rd);margin-bottom:8px;">📤 SELL LIMIT</div>
-      <div style="font-size:20px;font-weight:900;color:var(--rd)">${bestSell.p}</div>
+      <div style="font-size:24px;font-weight:900;color:var(--rd)">${bestSell.p}</div>
       <div style="font-size:10px;color:var(--dim);margin:4px 0">${bestSell.n}</div>
-      <div style="font-size:28px;font-weight:900;color:${sellLimitProb>=75?'var(--rd)':'var(--gold)'}">${sellLimitProb}%</div>
-      <div style="font-size:9px;color:var(--dim);margin:6px 0">Entry Probability</div>
-      <div style="font-size:10px;font-weight:700;color:${sellLimitProb>=75?'var(--rd)':'var(--gold)'}">${sellLimitProb>=75?'STRONG LIMIT SELL ✅':'MODERATE LIMIT SELL'}</div></div>`;
+      <div style="font-size:30px;font-weight:900;color:${sellLimitProb>=80?'var(--rd)':'var(--gold)'}">${sellLimitProb}%</div>
+      <div style="font-size:9px;color:var(--dim);margin:6px 0 4px">Entry Probability (Distance adj.)</div>
+      <div style="font-size:11px;font-weight:700;color:${sellLimitProb>=80?'var(--rd)':'var(--gold)'}">${sellLimitProb>=80?'✅ HIGH PROB':'🔸 MODERATE'}</div>
+    </div>`;
   } else {
-    html += '<div style="padding:14px;border:1px solid var(--dim);border-radius:10px;color:var(--dim)">No Sell Limit above price</div>';
+    html += '<div style="padding:16px;border:1px solid var(--dim);border-radius:12px;color:var(--dim);text-align:center">No Sell Limit<br>above price</div>';
   }
+
   html += '</div>';
-  html += `<div style="margin-top:10px;font-size:8px;color:var(--dim);text-align:center;">
-    ⚙ Koreksi: Noise=${quantum?.isNoise?'Yes':'No'} | Session=${SESS.overlap?'Overlap':SESS.best?'Best':'Normal'} | News=${NEWS} | Spread=${SPREAD}pts
+  html += `<div style="margin-top:12px;font-size:8px;color:var(--dim);text-align:center;line-height:1.8">
+    ⚛️ Model: Logistic(0.04,80) × Heisenberg(${quantum?.U?.toFixed(4)??'N/A'}, noise=${quantum?.isNoise??'?'}) × Bohr(${quantum?.nearBohrLevel?.n??'-'}) × Sesi • Berita • Spread • DXY
   </div>`;
+
   document.getElementById('ultimate-signal-content').innerHTML = html;
 }
 
