@@ -1214,7 +1214,7 @@ function run(fromResize = false) {
   drawMainChart(H, L, P, R, FIB, PIV, SD, ICHI, SIG, ORDERS, BB, EMA9A, EMA21A, VP, STDDEV, candles, SwSR);
   renderRisk(RISK_R, SIG, P, ATR, SPREAD, mp);
   renderEquity();
-  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3
+  renderUltimateSignal(SIG, ORDERS, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp); // <-- PANEL ULTIMATE V3 WITH DETAILS
   renderUnifiedTable(H, L, P, R, FIB, PIV, ICHI, BB, STDDEV, WM, VP, SwSR);
   renderSD(SD, P);
   renderIchi(ICHI, P);
@@ -1774,6 +1774,7 @@ function drawEWChart(EW, H, L, P, R) {
   });
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(W * .48, ty(P), 3, 0, Math.PI * 2); ctx.fill();
 }
+
 // RESIZE & INIT
 let _resizeTimer = null;
 window.addEventListener('resize', () => {
@@ -1789,7 +1790,7 @@ window.addEventListener('resize', () => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter') run(false); });
 
-// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) ==========
+// ========== ULTIMATE ENTRY SIGNAL (V3 – QUANTUM + LOGISTIC + BOHR) WITH DETAILS ==========
 function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SESS, STRUCT, mp) {
   // 1. Fungsi logistik untuk konversi skor mentah ke probabilitas dasar
   function logisticPct(rawScore) {
@@ -1890,36 +1891,71 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
   let buyLimitProb = calcLimitProb(bestBuy, buyProb);
   let sellLimitProb = calcLimitProb(bestSell, sellProb);
 
+  // Helper untuk mendapatkan daftar alasan per arah
+  function getReasons(dir) {
+    return sig.rsns.filter(r => {
+      return dir === 'BUY' ? r.p > 0 : r.p < 0;
+    }).sort((a, b) => Math.abs(b.p) - Math.abs(a.p));
+  }
+
+  const buyReasons = getReasons('BUY');
+  const sellReasons = getReasons('SELL');
+
+  function renderReasonList(reasons, limit = 10) {
+    return reasons.slice(0, limit).map(r => `
+      <div style="font-size:8px;padding:2px 0;display:flex;justify-content:space-between;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.03);">
+        <span><span style="background:rgba(255,255,255,.04);padding:0 4px;border-radius:2px;margin-right:4px;">${r.s}</span>${r.l}</span>
+        <span style="color:${r.p>0?'var(--gr)':'var(--rd)'}">${r.p>0?'+':''}${r.p}</span>
+      </div>
+    `).join('');
+  }
+
   // 7. Render panel
   let html = '<div class="g4" style="gap:12px">';
 
   // Market BUY
-  html += `<div style="background:${buyProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;text-align:center">
+  html += `<div style="background:${buyProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;text-align:center;display:flex;flex-direction:column;">
     <div style="font-family:'Orbitron';font-size:14px;color:var(--gr);margin-bottom:6px;">📈 MARKET BUY</div>
     <div style="font-size:34px;font-weight:900;color:${buyProb>=80?'var(--gr)':buyProb>=55?'var(--gold)':'var(--rd)'}">${buyProb}%</div>
     <div style="font-size:9px;color:var(--dim);margin:8px 0 4px">Confidence (Logistic + Quantum)</div>
     <div style="font-size:11px;font-weight:700;color:${buyProb>=80?'var(--gr)':buyProb>=55?'var(--gold)':'var(--rd)'}">${buyProb>=80?'🔥 STRONG BUY':buyProb>=55?'👍 MODERATE BUY':'👎 WEAK BUY'}</div>
-    <div style="margin-top:8px;font-size:8px;color:var(--dim)">Raw: ${rawB} | Base: ${baseBuyProb}% × ${multBuy.toFixed(2)}</div>
+    <div style="margin-top:8px;font-size:8px;color:var(--dim);">Raw: ${rawB} | Base: ${baseBuyProb}% × ${multBuy.toFixed(2)}</div>
+    <div style="margin-top:10px;text-align:left;max-height:180px;overflow-y:auto;">
+      <div style="font-size:7px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">🔹 TRIGGERS (${buyReasons.length})</div>
+      ${renderReasonList(buyReasons)}
+    </div>
   </div>`;
 
   // Market SELL
-  html += `<div style="background:${sellProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;text-align:center">
+  html += `<div style="background:${sellProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;text-align:center;display:flex;flex-direction:column;">
     <div style="font-family:'Orbitron';font-size:14px;color:var(--rd);margin-bottom:6px;">📉 MARKET SELL</div>
     <div style="font-size:34px;font-weight:900;color:${sellProb>=80?'var(--rd)':sellProb>=55?'var(--gold)':'var(--rd)'}">${sellProb}%</div>
     <div style="font-size:9px;color:var(--dim);margin:8px 0 4px">Confidence (Logistic + Quantum)</div>
     <div style="font-size:11px;font-weight:700;color:${sellProb>=80?'var(--rd)':sellProb>=55?'var(--gold)':'var(--rd)'}">${sellProb>=80?'🔥 STRONG SELL':sellProb>=55?'👍 MODERATE SELL':'👎 WEAK SELL'}</div>
-    <div style="margin-top:8px;font-size:8px;color:var(--dim)">Raw: ${rawS} | Base: ${baseSellProb}% × ${multSell.toFixed(2)}</div>
+    <div style="margin-top:8px;font-size:8px;color:var(--dim);">Raw: ${rawS} | Base: ${baseSellProb}% × ${multSell.toFixed(2)}</div>
+    <div style="margin-top:10px;text-align:left;max-height:180px;overflow-y:auto;">
+      <div style="font-size:7px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">🔹 TRIGGERS (${sellReasons.length})</div>
+      ${renderReasonList(sellReasons)}
+    </div>
   </div>`;
 
   // BUY LIMIT
   if (bestBuy) {
-    html += `<div style="background:${buyLimitProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyLimitProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;">
+    html += `<div style="background:${buyLimitProb>=80?'rgba(0,229,160,0.12)':'rgba(0,229,160,0.04)'};border:2px solid ${buyLimitProb>=80?'rgba(0,229,160,0.7)':'rgba(0,229,160,0.2)'};border-radius:12px;padding:16px;display:flex;flex-direction:column;">
       <div style="font-family:'Orbitron';font-size:14px;color:var(--gr);margin-bottom:8px;">📥 BUY LIMIT</div>
       <div style="font-size:24px;font-weight:900;color:var(--gr)">${bestBuy.p}</div>
       <div style="font-size:10px;color:var(--dim);margin:4px 0">${bestBuy.n}</div>
       <div style="font-size:30px;font-weight:900;color:${buyLimitProb>=80?'var(--gr)':'var(--gold)'}">${buyLimitProb}%</div>
       <div style="font-size:9px;color:var(--dim);margin:6px 0 4px">Entry Probability (Distance adj.)</div>
       <div style="font-size:11px;font-weight:700;color:${buyLimitProb>=80?'var(--gr)':'var(--gold)'}">${buyLimitProb>=80?'✅ HIGH PROB':'🔸 MODERATE'}</div>
+      <div style="margin-top:10px;text-align:left;font-size:8px;color:var(--dim);">
+        <div>SL: ${bestBuy.sl} | TP: ${bestBuy.tp}</div>
+        <div>Strength: ${bestBuy.str}% | R:R 1:${((Math.abs(+bestBuy.tp - +bestBuy.p))/(Math.abs(+bestBuy.p - +bestBuy.sl) || 1)).toFixed(1)}</div>
+      </div>
+      <div style="margin-top:8px;text-align:left;max-height:120px;overflow-y:auto;">
+        <div style="font-size:7px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">🔹 SUPPORTING BUY TRIGGERS</div>
+        ${renderReasonList(buyReasons, 5)}
+      </div>
     </div>`;
   } else {
     html += '<div style="padding:16px;border:1px solid var(--dim);border-radius:12px;color:var(--dim);text-align:center">No Buy Limit<br>below price</div>';
@@ -1927,13 +1963,21 @@ function renderUltimateSignal(sig, orders, quantum, P, H, L, R, SPREAD, NEWS, SE
 
   // SELL LIMIT
   if (bestSell) {
-    html += `<div style="background:${sellLimitProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellLimitProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;">
+    html += `<div style="background:${sellLimitProb>=80?'rgba(255,61,90,0.12)':'rgba(255,61,90,0.04)'};border:2px solid ${sellLimitProb>=80?'rgba(255,61,90,0.7)':'rgba(255,61,90,0.2)'};border-radius:12px;padding:16px;display:flex;flex-direction:column;">
       <div style="font-family:'Orbitron';font-size:14px;color:var(--rd);margin-bottom:8px;">📤 SELL LIMIT</div>
       <div style="font-size:24px;font-weight:900;color:var(--rd)">${bestSell.p}</div>
       <div style="font-size:10px;color:var(--dim);margin:4px 0">${bestSell.n}</div>
       <div style="font-size:30px;font-weight:900;color:${sellLimitProb>=80?'var(--rd)':'var(--gold)'}">${sellLimitProb}%</div>
       <div style="font-size:9px;color:var(--dim);margin:6px 0 4px">Entry Probability (Distance adj.)</div>
       <div style="font-size:11px;font-weight:700;color:${sellLimitProb>=80?'var(--rd)':'var(--gold)'}">${sellLimitProb>=80?'✅ HIGH PROB':'🔸 MODERATE'}</div>
+      <div style="margin-top:10px;text-align:left;font-size:8px;color:var(--dim);">
+        <div>SL: ${bestSell.sl} | TP: ${bestSell.tp}</div>
+        <div>Strength: ${bestSell.str}% | R:R 1:${((Math.abs(+bestSell.tp - +bestSell.p))/(Math.abs(+bestSell.p - +bestSell.sl) || 1)).toFixed(1)}</div>
+      </div>
+      <div style="margin-top:8px;text-align:left;max-height:120px;overflow-y:auto;">
+        <div style="font-size:7px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">🔹 SUPPORTING SELL TRIGGERS</div>
+        ${renderReasonList(sellReasons, 5)}
+      </div>
     </div>`;
   } else {
     html += '<div style="padding:16px;border:1px solid var(--dim);border-radius:12px;color:var(--dim);text-align:center">No Sell Limit<br>above price</div>';
